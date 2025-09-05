@@ -2,24 +2,19 @@ import os
 import re
 from PyPDF2 import PdfReader
 import docx
-import markdown
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
+import matplotlib.pyplot as plt
+import pypandoc
 
 DOC_FOLDER = "doc"
 REPORT_FOLDER = "reports"
-REPORT_MD = os.path.join(REPORT_FOLDER, "scan_report.md")
-REPORT_HTML = os.path.join(REPORT_FOLDER, "scan_report.html")
-REPORT_PDF = os.path.join(REPORT_FOLDER, "scan_report.pdf")
+REPORT_FILE = os.path.join(REPORT_FOLDER, "scan_report.md")
 
 SUSPICIOUS_PATTERNS = [
     r"http://", r"https?://.*bit\.ly", r"cmd.exe", r"powershell", r"javascript:",
     r"base64,", r"vbscript", r"shellcode", r"macro", r"AutoOpen"
 ]
 
-def scan_text(content):
+def scan_text(content, filename):
     issues = []
     for pattern in SUSPICIOUS_PATTERNS:
         if re.search(pattern, content, re.IGNORECASE):
@@ -42,84 +37,105 @@ def extract_text_from_docx(filepath):
     except Exception as e:
         return f"Error reading DOCX: {e}"
 
-# --- Report Generators ---
-def generate_md_report(results):
-    with open(REPORT_MD, "w", encoding="utf-8") as report:
-        report.write("# Document Security Scan Report\n\n")
-        report.write("| File | Status | Risk |\n")
-        report.write("|------|--------|------|\n")
-        for row in results:
-            report.write(f"| {row[0]} | {row[1]} | {row[2]} |\n")
+def generate_charts(results):
+    # Count statuses
+    status_counts = {"Safe": 0, "Suspicious": 0}
+    risk_counts = {"High": 0, "Medium": 0, "Low": 0}
 
-def generate_html_report():
-    with open(REPORT_MD, "r", encoding="utf-8") as f:
-        md_content = f.read()
-    html_content = markdown.markdown(md_content, extensions=["tables"])
-    with open(REPORT_HTML, "w", encoding="utf-8") as f:
-        f.write("<html><head><title>Document Scan Report</title></head><body>")
-        f.write(html_content)
-        f.write("</body></html>")
+    for _, status, risk in results:
+        if "Suspicious" in status:
+            status_counts["Suspicious"] += 1
+        else:
+            status_counts["Safe"] += 1
 
-def generate_pdf_report(results):
-    doc = SimpleDocTemplate(REPORT_PDF, pagesize=A4)
-    styles = getSampleStyleSheet()
-    elements = []
+        if risk in risk_counts:
+            risk_counts[risk] += 1
 
-    elements.append(Paragraph("Document Security Scan Report", styles["Title"]))
-    elements.append(Spacer(1, 12))
+    if sum(status_counts.values()) == 0:
+        return []
 
-    table_data = [["File", "Status", "Risk"]]
-    for row in results:
-        table_data.append(row)
+    charts = []
 
-    table = Table(table_data, repeatRows=1)
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.gray),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, 0), 12),
-        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
-        ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
-        ("GRID", (0, 0), (-1, -1), 1, colors.black),
-    ]))
+    # Pie chart for Safe vs Suspicious
+    pie_path = os.path.join(REPORT_FOLDER, "status_pie_chart.png")
+    plt.figure(figsize=(5, 5))
+    plt.pie(status_counts.values(), labels=status_counts.keys(),
+            autopct='%1.1f%%', colors=["#4CAF50", "#F44336"])
+    plt.title("Document Safety Distribution")
+    plt.savefig(pie_path)
+    plt.close()
+    charts.append(pie_path)
 
-    elements.append(table)
-    doc.build(elements)
+    # Bar chart for Risk Levels
+    bar_path = os.path.join(REPORT_FOLDER, "risk_bar_chart.png")
+    plt.figure(figsize=(6, 4))
+    plt.bar(risk_counts.keys(), risk_counts.values(),
+            color=["#F44336", "#FF9800", "#4CAF50"])
+    plt.title("Risk Level Distribution")
+    plt.xlabel("Risk Level")
+    plt.ylabel("Number of Documents")
+    plt.savefig(bar_path)
+    plt.close()
+    charts.append(bar_path)
 
-# --- Main ---
+    return charts
+
 def main():
     if not os.path.exists(REPORT_FOLDER):
         os.makedirs(REPORT_FOLDER)
 
     results = []
 
-    for file in os.listdir(DOC_FOLDER):
-        path = os.path.join(DOC_FOLDER, file)
-        content = ""
+    with open(REPORT_FILE, "w", encoding="utf-8") as report:
+        report.write("# Document Security Scan Report\n\n")
+        report.write("| File | Status | Risk |\n")
+        report.write("|------|--------|------|\n")
 
-        if file.lower().endswith(".pdf"):
-            content = extract_text_from_pdf(path)
-        elif file.lower().endswith(".docx"):
-            content = extract_text_from_docx(path)
-        elif file.lower().endswith(".txt"):
-            try:
-                with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read()
-            except Exception as e:
-                content = f"Error reading TXT: {e}"
-        else:
-            continue
+        for file in os.listdir(DOC_FOLDER):
+            path = os.path.join(DOC_FOLDER, file)
+            content = ""
 
-        status, risk = scan_text(content)
-        results.append((file, status, risk))
+            if file.lower().endswith(".pdf"):
+                content = extract_text_from_pdf(path)
+            elif file.lower().endswith(".docx"):
+                content = extract_text_from_docx(path)
+            elif file.lower().endswith(".txt"):
+                try:
+                    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read()
+                except Exception as e:
+                    content = f"Error reading TXT: {e}"
+            else:
+                continue
 
-    # Generate reports
-    generate_md_report(results)
-    generate_html_report()
-    generate_pdf_report(results)
+            status, risk = scan_text(content, file)
+            results.append((file, status, risk))
+            report.write(f"| {file} | {status} | {risk} |\n")
 
-    print(f"✅ Reports generated in {REPORT_FOLDER}")
+        # Generate and embed charts
+        charts = generate_charts(results)
+        if charts:
+            report.write("\n## Charts\n")
+            for chart in charts:
+                report.write(f"![{os.path.basename(chart)}]({os.path.basename(chart)})\n")
+
+    print(f"✅ Markdown report generated: {REPORT_FILE}")
+
+    # Convert to HTML and PDF
+    html_file = REPORT_FILE.replace(".md", ".html")
+    pdf_file = REPORT_FILE.replace(".md", ".pdf")
+
+    try:
+        pypandoc.convert_file(REPORT_FILE, 'html', outputfile=html_file, extra_args=['--standalone'])
+        print(f"🌐 HTML report generated: {html_file}")
+    except Exception as e:
+        print(f"⚠️ Could not generate HTML: {e}")
+
+    try:
+        pypandoc.convert_file(REPORT_FILE, 'pdf', outputfile=pdf_file, extra_args=['--standalone'])
+        print(f"📄 PDF report generated: {pdf_file}")
+    except Exception as e:
+        print(f"⚠️ Could not generate PDF: {e}")
 
 if __name__ == "__main__":
     main()
