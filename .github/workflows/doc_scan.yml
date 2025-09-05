@@ -1,0 +1,31 @@
+name: Document Security Scan
+
+on:
+  push:
+    paths:
+      - "doc/**"
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Document Scanner
+        run: python scripts/scan_docs.py
+
+      - name: Upload Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: doc-scan-report
+          path: reports/scan_report.md
