@@ -1,3 +1,5 @@
 python-docx
 PyPDF2
 requests
+markdown
+reportlab
