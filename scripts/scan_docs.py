@@ -4,6 +4,7 @@ import subprocess
 from PyPDF2 import PdfReader
 import docx
 import matplotlib.pyplot as plt
+import pypandoc
 
 DOC_FOLDER = "doc"
 REPORT_FOLDER = "reports"
@@ -140,3 +141,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
