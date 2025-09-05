@@ -4,3 +4,5 @@ requests
 markdown
 reportlab
 matplotlib
+pypandoc
+
