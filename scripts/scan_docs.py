@@ -3,6 +3,7 @@ import re
 from PyPDF2 import PdfReader
 import docx
 import matplotlib.pyplot as plt
+import pypandoc
 
 DOC_FOLDER = "doc"
 REPORT_FOLDER = "reports"
@@ -50,34 +51,34 @@ def generate_charts(results):
         if risk in risk_counts:
             risk_counts[risk] += 1
 
-    # Avoid division errors if no docs
     if sum(status_counts.values()) == 0:
         return []
 
-    chart_files = []
+    charts = []
 
     # Pie chart for Safe vs Suspicious
-    pie_chart = os.path.join(REPORT_FOLDER, "status_pie_chart.png")
-    plt.figure(figsize=(5,5))
-    plt.pie(status_counts.values(), labels=status_counts.keys(), autopct='%1.1f%%', 
-            colors=["#4CAF50", "#F44336"])
+    pie_path = os.path.join(REPORT_FOLDER, "status_pie_chart.png")
+    plt.figure(figsize=(5, 5))
+    plt.pie(status_counts.values(), labels=status_counts.keys(),
+            autopct='%1.1f%%', colors=["#4CAF50", "#F44336"])
     plt.title("Document Safety Distribution")
-    plt.savefig(pie_chart)
+    plt.savefig(pie_path)
     plt.close()
-    chart_files.append(pie_chart)
+    charts.append(pie_path)
 
     # Bar chart for Risk Levels
-    bar_chart = os.path.join(REPORT_FOLDER, "risk_bar_chart.png")
-    plt.figure(figsize=(6,4))
-    plt.bar(risk_counts.keys(), risk_counts.values(), color=["#F44336", "#FF9800", "#4CAF50"])
+    bar_path = os.path.join(REPORT_FOLDER, "risk_bar_chart.png")
+    plt.figure(figsize=(6, 4))
+    plt.bar(risk_counts.keys(), risk_counts.values(),
+            color=["#F44336", "#FF9800", "#4CAF50"])
     plt.title("Risk Level Distribution")
     plt.xlabel("Risk Level")
     plt.ylabel("Number of Documents")
-    plt.savefig(bar_chart)
+    plt.savefig(bar_path)
     plt.close()
-    chart_files.append(bar_chart)
+    charts.append(bar_path)
 
-    return chart_files
+    return charts
 
 def main():
     if not os.path.exists(REPORT_FOLDER):
@@ -111,15 +112,30 @@ def main():
             results.append((file, status, risk))
             report.write(f"| {file} | {status} | {risk} |\n")
 
-        # Generate charts and embed in report
-        chart_files = generate_charts(results)
-        if chart_files:
+        # Generate and embed charts
+        charts = generate_charts(results)
+        if charts:
             report.write("\n## Charts\n")
-            for chart in chart_files:
+            for chart in charts:
                 report.write(f"![{os.path.basename(chart)}]({os.path.basename(chart)})\n")
 
-    print(f"✅ Report generated: {REPORT_FILE}")
-    print("📊 Charts embedded into report")
+    print(f"✅ Markdown report generated: {REPORT_FILE}")
+
+    # Convert to HTML and PDF
+    html_file = REPORT_FILE.replace(".md", ".html")
+    pdf_file = REPORT_FILE.replace(".md", ".pdf")
+
+    try:
+        pypandoc.convert_file(REPORT_FILE, 'html', outputfile=html_file, extra_args=['--standalone'])
+        print(f"🌐 HTML report generated: {html_file}")
+    except Exception as e:
+        print(f"⚠️ Could not generate HTML: {e}")
+
+    try:
+        pypandoc.convert_file(REPORT_FILE, 'pdf', outputfile=pdf_file, extra_args=['--standalone'])
+        print(f"📄 PDF report generated: {pdf_file}")
+    except Exception as e:
+        print(f"⚠️ Could not generate PDF: {e}")
 
 if __name__ == "__main__":
     main()
