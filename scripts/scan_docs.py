@@ -1,9 +1,9 @@
 import os
 import re
+import subprocess
 from PyPDF2 import PdfReader
 import docx
 import matplotlib.pyplot as plt
-import pypandoc
 
 DOC_FOLDER = "doc"
 REPORT_FOLDER = "reports"
@@ -80,6 +80,16 @@ def generate_charts(results):
 
     return charts
 
+def convert_with_pandoc(input_file, output_file, to_format):
+    try:
+        subprocess.run(
+            ["pandoc", input_file, "-o", output_file, "--standalone"],
+            check=True
+        )
+        print(f"✅ {to_format.upper()} report generated: {output_file}")
+    except Exception as e:
+        print(f"⚠️ Could not generate {to_format.upper()}: {e}")
+
 def main():
     if not os.path.exists(REPORT_FOLDER):
         os.makedirs(REPORT_FOLDER)
@@ -121,21 +131,12 @@ def main():
 
     print(f"✅ Markdown report generated: {REPORT_FILE}")
 
-    # Convert to HTML and PDF
+    # Convert to HTML and PDF using system pandoc
     html_file = REPORT_FILE.replace(".md", ".html")
     pdf_file = REPORT_FILE.replace(".md", ".pdf")
 
-    try:
-        pypandoc.convert_file(REPORT_FILE, 'html', outputfile=html_file, extra_args=['--standalone'])
-        print(f"🌐 HTML report generated: {html_file}")
-    except Exception as e:
-        print(f"⚠️ Could not generate HTML: {e}")
-
-    try:
-        pypandoc.convert_file(REPORT_FILE, 'pdf', outputfile=pdf_file, extra_args=['--standalone'])
-        print(f"📄 PDF report generated: {pdf_file}")
-    except Exception as e:
-        print(f"⚠️ Could not generate PDF: {e}")
+    convert_with_pandoc(REPORT_FILE, html_file, "html")
+    convert_with_pandoc(REPORT_FILE, pdf_file, "pdf")
 
 if __name__ == "__main__":
     main()
